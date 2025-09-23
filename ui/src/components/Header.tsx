@@ -10,9 +10,7 @@ export function Header() {
             <h1 className="header-title">
               ZLottery
             </h1>
-            <span className="header-badge">
-              Encrypted Lottery
-            </span>
+           
           </div>
           <ConnectButton />
         </div>
