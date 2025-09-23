@@ -92,7 +92,8 @@ export function LotteryDraw() {
       setMessage(null);
 
       // Draw lottery using ethers
-      const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+      const ethersSigner = await signer;
+      const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, ethersSigner);
       const tx = await contract.drawLottery();
 
       setMessage({ type: 'info', text: 'Transaction sent, waiting for confirmation...' });

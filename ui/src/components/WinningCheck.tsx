@@ -4,15 +4,18 @@ import { formatEther } from 'viem';
 import { ethers } from 'ethers';
 import { CONTRACT_ADDRESS, CONTRACT_ABI } from '../config/contracts';
 import { useEthersSigner } from '../hooks/useEthersSigner';
+import { useZamaInstance } from '../hooks/useZamaInstance';
 
 
 export function WinningCheck() {
   const { address } = useAccount();
   const [selectedRound, setSelectedRound] = useState<number>(1);
-  const [selectedTicketIndex, setSelectedTicketIndex] = useState<number>(0);
   const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [decryptedTickets, setDecryptedTickets] = useState<Map<number, number>>(new Map());
+  const [decryptingIndex, setDecryptingIndex] = useState<number | null>(null);
   const signer = useEthersSigner();
+  const { instance, isInitialized } = useZamaInstance();
 
   // Read current round
   const { data: currentRound } = useReadContract({
@@ -62,7 +65,70 @@ export function WinningCheck() {
   });
 
 
-  const claimPrize = async () => {
+  // Function to decrypt a ticket
+  const decryptTicket = async (ticketIndex: number) => {
+    if (!instance || !isInitialized || !address || !signer) {
+      setMessage({ type: 'error', text: 'Please ensure wallet is connected and FHE is initialized' });
+      return;
+    }
+
+    try {
+      setDecryptingIndex(ticketIndex);
+      setMessage(null);
+
+      // Get the encrypted ticket handle from the contract
+      const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, await signer);
+      const encryptedTicketHandle = await contract.getUserTicket(BigInt(selectedRound), BigInt(ticketIndex));
+
+      // Create keypair for decryption
+      const keypair = instance.generateKeypair();
+      const handleContractPairs = [
+        {
+          handle: encryptedTicketHandle,
+          contractAddress: CONTRACT_ADDRESS,
+        },
+      ];
+
+      const startTimeStamp = Math.floor(Date.now() / 1000).toString();
+      const durationDays = "10";
+      const contractAddresses = [CONTRACT_ADDRESS];
+
+      // Create EIP712 signature for decryption
+      const eip712 = instance.createEIP712(keypair.publicKey, contractAddresses, startTimeStamp, durationDays);
+      const signerInstance = await signer;
+      const signature = await signerInstance.signTypedData(
+        eip712.domain,
+        {
+          UserDecryptRequestVerification: eip712.types.UserDecryptRequestVerification,
+        },
+        eip712.message,
+      );
+
+      // Perform user decryption
+      const result = await instance.userDecrypt(
+        handleContractPairs,
+        keypair.privateKey,
+        keypair.publicKey,
+        signature.replace("0x", ""),
+        contractAddresses,
+        address,
+        startTimeStamp,
+        durationDays,
+      );
+
+      const decryptedValue = result[encryptedTicketHandle];
+      setDecryptedTickets(prev => new Map(prev.set(ticketIndex, decryptedValue)));
+      setMessage({ type: 'success', text: `Ticket #${ticketIndex + 1} decrypted: ${decryptedValue}` });
+
+    } catch (err) {
+      console.error('Error decrypting ticket:', err);
+      setMessage({ type: 'error', text: 'Failed to decrypt ticket' });
+    } finally {
+      setDecryptingIndex(null);
+    }
+  };
+
+  const claimPrize = async (ticketIndex: number) => {
     if (!address) {
       setMessage({ type: 'error', text: 'Please connect your wallet' });
       return;
@@ -83,7 +149,7 @@ export function WinningCheck() {
       return;
     }
 
-    if (!userTicketCount || selectedTicketIndex >= Number(userTicketCount)) {
+    if (!userTicketCount || ticketIndex >= Number(userTicketCount)) {
       setMessage({ type: 'error', text: 'Invalid ticket index' });
       return;
     }
@@ -93,10 +159,10 @@ export function WinningCheck() {
       setMessage(null);
 
       // Claim prize using ethers
-      const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+      const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, await signer);
       const tx = await contract.claimPrizeSimple(
         BigInt(selectedRound),
-        BigInt(selectedTicketIndex)
+        BigInt(ticketIndex)
       );
 
       setMessage({ type: 'info', text: 'Transaction sent, waiting for confirmation...' });
@@ -120,8 +186,10 @@ export function WinningCheck() {
   // Generate round options (current round and previous 4)
   const roundOptions = currentRound ? Array.from({ length: Math.min(Number(currentRound), 5) }, (_, i) => Number(currentRound) - i) : [];
 
-  // Generate ticket index options
-  const ticketOptions = userTicketCount ? Array.from({ length: Number(userTicketCount) }, (_, i) => i) : [];
+  // Reset decrypted tickets when round changes
+  useEffect(() => {
+    setDecryptedTickets(new Map());
+  }, [selectedRound]);
 
   return (
     <div className="lottery-section">
@@ -144,21 +212,107 @@ export function WinningCheck() {
         </select>
       </div>
 
-      {/* Ticket Selection */}
+      {/* Current Round Results - Show at top */}
+      {selectedRound && isRoundDrawn && winningNumber !== undefined && (
+        <div className="status-card">
+          <div className="status-title">Round {selectedRound} Results</div>
+          <div className="winning-number">
+            Winning Number: {winningNumber}
+          </div>
+        </div>
+      )}
+
+      {/* Tickets List */}
       {userTicketCount && Number(userTicketCount) > 0 && (
         <div className="form-group">
-          <label className="form-label">Select Your Ticket</label>
-          <select
-            value={selectedTicketIndex}
-            onChange={(e) => setSelectedTicketIndex(Number(e.target.value))}
-            className="form-input"
-          >
-            {ticketOptions.map(index => (
-              <option key={index} value={index}>
-                Ticket #{index + 1}
-              </option>
-            ))}
-          </select>
+          <label className="form-label">Your Tickets for Round {selectedRound}</label>
+          <div style={{ display: 'grid', gap: '1rem', marginTop: '1rem' }}>
+            {Array.from({ length: Number(userTicketCount) }, (_, index) => {
+              const decryptedValue = decryptedTickets.get(index);
+              const isDecrypting = decryptingIndex === index;
+              const isWinner = decryptedValue !== undefined && winningNumber !== undefined && decryptedValue === Number(winningNumber);
+
+              return (
+                <div
+                  key={index}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '1rem',
+                    backgroundColor: isWinner ? '#f0f9ff' : '#f8fafc',
+                    border: isWinner ? '2px solid #3b82f6' : '1px solid #e2e8f0',
+                    borderRadius: '8px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <span style={{ fontWeight: '500', minWidth: '80px' }}>
+                      Ticket #{index + 1}:
+                    </span>
+                    <span style={{
+                      fontFamily: 'monospace',
+                      fontSize: '1.125rem',
+                      color: decryptedValue !== undefined ? (isWinner ? '#3b82f6' : '#1f2937') : '#6b7280'
+                    }}>
+                      {decryptedValue !== undefined ? decryptedValue : '***'}
+                    </span>
+                    {isWinner && (
+                      <span style={{
+                        padding: '0.25rem 0.5rem',
+                        backgroundColor: '#3b82f6',
+                        color: 'white',
+                        borderRadius: '4px',
+                        fontSize: '0.875rem',
+                        fontWeight: '500'
+                      }}>
+                        WINNER!
+                      </span>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    {decryptedValue === undefined ? (
+                      <button
+                        onClick={() => decryptTicket(index)}
+                        disabled={isDecrypting || !isInitialized}
+                        style={{
+                          padding: '0.5rem 1rem',
+                          backgroundColor: '#3b82f6',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '6px',
+                          cursor: isDecrypting ? 'not-allowed' : 'pointer',
+                          opacity: isDecrypting ? 0.6 : 1,
+                          fontSize: '0.875rem'
+                        }}
+                      >
+                        {isDecrypting ? 'Decrypting...' : 'Decrypt'}
+                      </button>
+                    ) : (
+                      isRoundDrawn && !hasClaimed && (
+                        <button
+                          onClick={() => claimPrize(index)}
+                          disabled={isLoading}
+                          style={{
+                            padding: '0.5rem 1rem',
+                            backgroundColor: isWinner ? '#059669' : '#6b7280',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '6px',
+                            cursor: isLoading ? 'not-allowed' : 'pointer',
+                            opacity: isLoading ? 0.6 : 1,
+                            fontSize: '0.875rem'
+                          }}
+                        >
+                          {isLoading ? 'Claiming...' : (isWinner ? 'Claim Prize!' : 'Try Claim')}
+                        </button>
+                      )
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -190,15 +344,6 @@ export function WinningCheck() {
         </div>
       )}
 
-      {/* Winning Number */}
-      {isRoundDrawn && winningNumber !== undefined && (
-        <div className="status-card">
-          <div className="status-title">Round {selectedRound} Results</div>
-          <div className="winning-number">
-            Winning Number: {winningNumber}
-          </div>
-        </div>
-      )}
 
       {/* No tickets for selected round */}
       {selectedRound && userTicketCount === 0n && (
@@ -214,45 +359,18 @@ export function WinningCheck() {
         </div>
       )}
 
-      {/* Action Buttons */}
-      {selectedRound && userTicketCount && Number(userTicketCount) > 0 && (
-        <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
-          {isRoundDrawn ? (
-            <button
-              onClick={claimPrize}
-              disabled={hasClaimed || isLoading}
-              className="lottery-button"
-              style={{ flex: 1 }}
-            >
-              {isLoading ? (
-                <div className="loading-button">
-                  <div className="loading-spinner"></div>
-                  Processing...
-                </div>
-              ) : hasClaimed ? (
-                'Already Claimed'
-              ) : (
-                'Claim Prize (if winner)'
-              )}
-            </button>
-          ) : (
-            <div className="alert alert-info" style={{ flex: 1, margin: 0 }}>
-              Round {selectedRound} has not been drawn yet. Please wait for the draw.
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Instructions */}
       <div className="status-card" style={{ marginTop: '2rem' }}>
         <div className="status-title">How to Check & Claim</div>
         <ul style={{ margin: '0.5rem 0', paddingLeft: '1.5rem', color: '#6b7280' }}>
-          <li>Select a round and your ticket to check</li>
-          <li>You can only check tickets for rounds that have been drawn</li>
-          <li>Click "Claim Prize" to attempt claiming - it will only work if your encrypted ticket matches the winning number</li>
-          <li>The contract automatically checks your encrypted number against the public winning number</li>
-          <li>You can only claim once per round, even if you have multiple tickets</li>
-          <li>If your ticket doesn't match, the transaction will fail and you won't pay gas</li>
+          <li>Select a round to view your tickets for that round</li>
+          <li>Your tickets are shown in encrypted form (***) to protect privacy</li>
+          <li>Click "Decrypt" to reveal the actual number on each ticket</li>
+          <li>Once decrypted, winning tickets will be highlighted in blue</li>
+          <li>Click "Claim Prize!" on winning tickets to claim your reward</li>
+          <li>You can only claim once per round, even if you have multiple winning tickets</li>
+          <li>Decryption requires wallet signature for security</li>
         </ul>
       </div>
 
