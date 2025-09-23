@@ -284,27 +284,25 @@ describe("ZLottery", function () {
       expect(finalBalance).to.be.gt(initialBalance);
     });
 
-    it("Should only allow owner to make winning numbers public", async function () {
+    it("Should generate public winning numbers after draw", async function () {
       const ticketPrice = await lottery.TICKET_PRICE();
-      
+
       const input = fhevm.createEncryptedInput(contractAddress, user1.address);
       input.add8(42);
       const encryptedInput = await input.encrypt();
-      
+
       await lottery.connect(user1).buyTicket(
         encryptedInput.handles[0],
         encryptedInput.inputProof,
         { value: ticketPrice }
       );
-      
+
       await lottery.drawLottery();
 
-      await expect(
-        lottery.connect(user1).makeWinningNumberPublic(1)
-      ).to.be.revertedWith("Only owner can call this function");
-      
-      // Owner should be able to make it public
-      await expect(lottery.makeWinningNumberPublic(1)).to.not.be.reverted;
+      // Winning number should be publicly accessible after draw
+      const winningNumber = await lottery.getWinningNumber(1);
+      expect(winningNumber).to.be.gte(11);
+      expect(winningNumber).to.be.lte(99);
     });
   });
 

@@ -44,6 +44,7 @@ task("lottery:buy", "Buy a lottery ticket")
   .addParam("number", "Lottery number (11-99)")
   .setAction(async (taskArgs, hre: HardhatRuntimeEnvironment) => {
     const { ethers, fhevm } = hre;
+    await fhevm.initializeCLIApi()
     const [signer] = await ethers.getSigners();
     
     const lottery = await ethers.getContractAt("ZLottery", taskArgs.contract);
