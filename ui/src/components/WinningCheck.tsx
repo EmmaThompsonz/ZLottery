@@ -239,10 +239,18 @@ export function WinningCheck() {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    padding: '0.75rem',
-                    backgroundColor: isWinner ? '#f0f9ff' : '#f8fafc',
-                    border: isWinner ? '2px solid #3b82f6' : '1px solid #e2e8f0',
-                    borderRadius: '8px',
+                    padding: '1.25rem',
+                    background: isWinner
+                      ? 'linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(147, 197, 253, 0.1) 100%)'
+                      : 'rgba(255, 255, 255, 0.9)',
+                    backdropFilter: 'blur(10px)',
+                    border: isWinner ? '2px solid #3b82f6' : '1px solid rgba(255, 255, 255, 0.3)',
+                    borderRadius: '16px',
+                    boxShadow: isWinner
+                      ? '0 8px 24px rgba(59, 130, 246, 0.25)'
+                      : '0 4px 16px rgba(0, 0, 0, 0.1)',
+                    transition: 'all 0.3s ease',
+                    transform: isWinner ? 'scale(1.02)' : 'scale(1)',
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -276,14 +284,17 @@ export function WinningCheck() {
                         onClick={() => decryptTicket(index)}
                         disabled={isDecrypting || !isInitialized}
                         style={{
-                          padding: '0.375rem 0.75rem',
-                          backgroundColor: '#3b82f6',
+                          padding: '0.5rem 1rem',
+                          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                           color: 'white',
                           border: 'none',
-                          borderRadius: '4px',
+                          borderRadius: '12px',
                           cursor: isDecrypting ? 'not-allowed' : 'pointer',
                           opacity: isDecrypting ? 0.6 : 1,
-                          fontSize: '0.75rem'
+                          fontSize: '0.75rem',
+                          fontWeight: '600',
+                          boxShadow: '0 4px 12px rgba(102, 126, 234, 0.3)',
+                          transition: 'all 0.3s ease'
                         }}
                       >
                         {isDecrypting ? 'Decrypting...' : 'Decrypt'}
@@ -294,14 +305,21 @@ export function WinningCheck() {
                           onClick={() => claimPrize(index)}
                           disabled={isLoading}
                           style={{
-                            padding: '0.375rem 0.75rem',
-                            backgroundColor: isWinner ? '#059669' : '#6b7280',
+                            padding: '0.5rem 1rem',
+                            background: isWinner
+                              ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
+                              : 'linear-gradient(135deg, #6b7280 0%, #4b5563 100%)',
                             color: 'white',
                             border: 'none',
-                            borderRadius: '4px',
+                            borderRadius: '12px',
                             cursor: isLoading ? 'not-allowed' : 'pointer',
                             opacity: isLoading ? 0.6 : 1,
-                            fontSize: '0.75rem'
+                            fontSize: '0.75rem',
+                            fontWeight: '600',
+                            boxShadow: isWinner
+                              ? '0 4px 12px rgba(16, 185, 129, 0.3)'
+                              : '0 4px 12px rgba(107, 114, 128, 0.3)',
+                            transition: 'all 0.3s ease'
                           }}
                         >
                           {isLoading ? 'Claiming...' : (isWinner ? 'Claim Prize!' : 'Try Claim')}
