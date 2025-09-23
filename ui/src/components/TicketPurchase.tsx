@@ -27,7 +27,7 @@ export function TicketPurchase() {
   });
 
   // Read user's ticket count for current round
-  const { data: userTicketCount, refetch: refetchTicketCount } = useReadContract({
+  const { data: userTicketCount } = useReadContract({
     address: CONTRACT_ADDRESS,
     abi: CONTRACT_ABI,
     functionName: 'getUserTicketCount',
@@ -35,7 +35,7 @@ export function TicketPurchase() {
   });
 
   // Read prize pool for current round
-  const { data: prizePool, refetch: refetchPrizePool } = useReadContract({
+  const { data: prizePool } = useReadContract({
     address: CONTRACT_ADDRESS,
     abi: CONTRACT_ABI,
     functionName: 'prizePools',
@@ -43,7 +43,7 @@ export function TicketPurchase() {
   });
 
   // Read total tickets in current round
-  const { data: totalTickets, refetch: refetchTotalTickets } = useReadContract({
+  const { data: totalTickets } = useReadContract({
     address: CONTRACT_ADDRESS,
     abi: CONTRACT_ABI,
     functionName: 'totalTicketsInRound',
@@ -94,7 +94,9 @@ export function TicketPurchase() {
       const tx = await contract.buyTicket(
         encryptedInput.handles[0],
         encryptedInput.inputProof,
-        { value: ethers.parseEther(TICKET_PRICE) }
+        {
+          value: ethers.parseEther(TICKET_PRICE)
+        }
       );
 
       setMessage({ type: 'info', text: 'Transaction sent, waiting for confirmation...' });
