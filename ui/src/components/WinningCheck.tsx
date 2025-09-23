@@ -226,7 +226,7 @@ export function WinningCheck() {
       {userTicketCount && Number(userTicketCount) > 0 && (
         <div className="form-group">
           <label className="form-label">Your Tickets for Round {selectedRound}</label>
-          <div style={{ display: 'grid', gap: '1rem', marginTop: '1rem' }}>
+          <div style={{ display: 'grid', gap: '0.75rem', marginTop: '0.75rem' }}>
             {Array.from({ length: Number(userTicketCount) }, (_, index) => {
               const decryptedValue = decryptedTickets.get(index);
               const isDecrypting = decryptingIndex === index;
@@ -239,30 +239,30 @@ export function WinningCheck() {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    padding: '1rem',
+                    padding: '0.75rem',
                     backgroundColor: isWinner ? '#f0f9ff' : '#f8fafc',
                     border: isWinner ? '2px solid #3b82f6' : '1px solid #e2e8f0',
                     borderRadius: '8px',
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                    <span style={{ fontWeight: '500', minWidth: '80px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <span style={{ fontWeight: '500', minWidth: '70px', fontSize: '0.875rem' }}>
                       Ticket #{index + 1}:
                     </span>
                     <span style={{
                       fontFamily: 'monospace',
-                      fontSize: '1.125rem',
+                      fontSize: '1rem',
                       color: decryptedValue !== undefined ? (isWinner ? '#3b82f6' : '#1f2937') : '#6b7280'
                     }}>
                       {decryptedValue !== undefined ? decryptedValue : '***'}
                     </span>
                     {isWinner && (
                       <span style={{
-                        padding: '0.25rem 0.5rem',
+                        padding: '0.125rem 0.375rem',
                         backgroundColor: '#3b82f6',
                         color: 'white',
                         borderRadius: '4px',
-                        fontSize: '0.875rem',
+                        fontSize: '0.75rem',
                         fontWeight: '500'
                       }}>
                         WINNER!
@@ -276,14 +276,14 @@ export function WinningCheck() {
                         onClick={() => decryptTicket(index)}
                         disabled={isDecrypting || !isInitialized}
                         style={{
-                          padding: '0.5rem 1rem',
+                          padding: '0.375rem 0.75rem',
                           backgroundColor: '#3b82f6',
                           color: 'white',
                           border: 'none',
-                          borderRadius: '6px',
+                          borderRadius: '4px',
                           cursor: isDecrypting ? 'not-allowed' : 'pointer',
                           opacity: isDecrypting ? 0.6 : 1,
-                          fontSize: '0.875rem'
+                          fontSize: '0.75rem'
                         }}
                       >
                         {isDecrypting ? 'Decrypting...' : 'Decrypt'}
@@ -294,14 +294,14 @@ export function WinningCheck() {
                           onClick={() => claimPrize(index)}
                           disabled={isLoading}
                           style={{
-                            padding: '0.5rem 1rem',
+                            padding: '0.375rem 0.75rem',
                             backgroundColor: isWinner ? '#059669' : '#6b7280',
                             color: 'white',
                             border: 'none',
-                            borderRadius: '6px',
+                            borderRadius: '4px',
                             cursor: isLoading ? 'not-allowed' : 'pointer',
                             opacity: isLoading ? 0.6 : 1,
-                            fontSize: '0.875rem'
+                            fontSize: '0.75rem'
                           }}
                         >
                           {isLoading ? 'Claiming...' : (isWinner ? 'Claim Prize!' : 'Try Claim')}
