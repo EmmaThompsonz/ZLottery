@@ -1,11 +1,15 @@
 import { useState, useEffect } from 'react';
-import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { useAccount, useReadContract } from 'wagmi';
 import { formatEther } from 'viem';
+import { ethers } from 'ethers';
 import { CONTRACT_ADDRESS, CONTRACT_ABI } from '../config/contracts';
+import { useEthersSigner } from '../hooks/useEthersSigner';
 
 export function LotteryDraw() {
   const { address } = useAccount();
   const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const signer = useEthersSigner();
 
   // Read current round
   const { data: currentRound, refetch: refetchCurrentRound } = useReadContract({
@@ -56,30 +60,15 @@ export function LotteryDraw() {
   // Get winning numbers for previous rounds (last 5)
   const previousRounds = currentRound ? Array.from({ length: Math.min(Number(currentRound) - 1, 5) }, (_, i) => Number(currentRound) - 1 - i) : [];
 
-  const { writeContract, data: hash, error, isPending } = useWriteContract();
-
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
-    hash,
-  });
-
-  useEffect(() => {
-    if (isConfirmed) {
-      setMessage({ type: 'success', text: 'Lottery drawn successfully!' });
-      refetchCurrentRound();
-      refetchIsRoundDrawn();
-      refetchWinningNumber();
-    }
-  }, [isConfirmed, refetchCurrentRound, refetchIsRoundDrawn, refetchWinningNumber]);
-
-  useEffect(() => {
-    if (error) {
-      setMessage({ type: 'error', text: error.message || 'Failed to draw lottery' });
-    }
-  }, [error]);
 
   const handleDrawLottery = async () => {
     if (!address) {
       setMessage({ type: 'error', text: 'Please connect your wallet' });
+      return;
+    }
+
+    if (!signer) {
+      setMessage({ type: 'error', text: 'Signer not available' });
       return;
     }
 
@@ -99,15 +88,29 @@ export function LotteryDraw() {
     }
 
     try {
+      setIsLoading(true);
       setMessage(null);
-      writeContract({
-        address: CONTRACT_ADDRESS,
-        abi: CONTRACT_ABI,
-        functionName: 'drawLottery',
-      });
+
+      // Draw lottery using ethers
+      const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+      const tx = await contract.drawLottery();
+
+      setMessage({ type: 'info', text: 'Transaction sent, waiting for confirmation...' });
+
+      // Wait for transaction confirmation
+      const receipt = await tx.wait();
+      console.log('Transaction confirmed:', receipt);
+
+      setMessage({ type: 'success', text: 'Lottery drawn successfully!' });
+      refetchCurrentRound();
+      refetchIsRoundDrawn();
+      refetchWinningNumber();
+      setIsLoading(false);
+
     } catch (err) {
       console.error('Error drawing lottery:', err);
       setMessage({ type: 'error', text: 'Failed to draw lottery' });
+      setIsLoading(false);
     }
   };
 
@@ -171,17 +174,17 @@ export function LotteryDraw() {
         <div style={{ marginBottom: '2rem' }}>
           <button
             onClick={handleDrawLottery}
-            disabled={!canDraw || isPending || isConfirming}
+            disabled={!canDraw || isLoading}
             className="lottery-button"
             style={{
               width: '100%',
               backgroundColor: canDraw ? '#059669' : undefined
             }}
           >
-            {isPending || isConfirming ? (
+            {isLoading ? (
               <div className="loading-button">
                 <div className="loading-spinner"></div>
-                {isPending ? 'Drawing...' : 'Confirming...'}
+                Processing...
               </div>
             ) : isRoundDrawn ? (
               'Round Already Drawn'

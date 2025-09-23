@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { useAccount, useReadContract } from 'wagmi';
 import { parseEther, formatEther } from 'viem';
+import { ethers } from 'ethers';
 import { CONTRACT_ADDRESS, CONTRACT_ABI } from '../config/contracts';
 import { useZamaInstance } from '../hooks/useZamaInstance';
 import { useEthersSigner } from '../hooks/useEthersSigner';
@@ -57,27 +58,6 @@ export function TicketPurchase() {
     args: currentRound ? [currentRound] : undefined,
   });
 
-  const { writeContract, data: hash, error, isPending } = useWriteContract();
-
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
-    hash,
-  });
-
-  useEffect(() => {
-    if (isConfirmed) {
-      setMessage({ type: 'success', text: 'Ticket purchased successfully!' });
-      setTicketNumber('');
-      refetchTicketCount();
-      setIsLoading(false);
-    }
-  }, [isConfirmed, refetchTicketCount]);
-
-  useEffect(() => {
-    if (error) {
-      setMessage({ type: 'error', text: error.message || 'Failed to purchase ticket' });
-      setIsLoading(false);
-    }
-  }, [error]);
 
   const handlePurchaseTicket = async () => {
     if (!instance || !isInitialized || !signer || !address) {
@@ -105,14 +85,27 @@ export function TicketPurchase() {
       input.add8(number);
       const encryptedInput = await input.encrypt();
 
-      // Purchase ticket with encrypted number
-      writeContract({
-        address: CONTRACT_ADDRESS,
-        abi: CONTRACT_ABI,
-        functionName: 'buyTicket',
-        args: [encryptedInput.handles[0], encryptedInput.inputProof],
-        value: parseEther(TICKET_PRICE),
-      });
+      // Get the actual signer (it's a Promise)
+      const ethersSigner = await signer;
+
+      // Purchase ticket with encrypted number using ethers
+      const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, ethersSigner);
+      const tx = await contract.buyTicket(
+        encryptedInput.handles[0],
+        encryptedInput.inputProof,
+        { value: ethers.parseEther(TICKET_PRICE) }
+      );
+
+      setMessage({ type: 'info', text: 'Transaction sent, waiting for confirmation...' });
+
+      // Wait for transaction confirmation
+      const receipt = await tx.wait();
+      console.log('Transaction confirmed:', receipt);
+
+      setMessage({ type: 'success', text: 'Ticket purchased successfully!' });
+      setTicketNumber('');
+      refetchTicketCount();
+      setIsLoading(false);
 
     } catch (err) {
       console.error('Error purchasing ticket:', err);
@@ -129,7 +122,7 @@ export function TicketPurchase() {
     }
   };
 
-  const isButtonDisabled = isLoading || isPending || isConfirming || !ticketNumber || !isInitialized || isRoundDrawn;
+  const isButtonDisabled = isLoading || !ticketNumber || !isInitialized || isRoundDrawn;
 
   return (
     <div className="lottery-section">
@@ -202,10 +195,10 @@ export function TicketPurchase() {
         className="lottery-button"
         style={{ width: '100%' }}
       >
-        {isLoading || isPending || isConfirming ? (
+        {isLoading ? (
           <div className="loading-button">
             <div className="loading-spinner"></div>
-            {isPending ? 'Confirming...' : isConfirming ? 'Processing...' : 'Encrypting...'}
+            Processing...
           </div>
         ) : (
           `Buy Ticket for ${TICKET_PRICE} ETH`

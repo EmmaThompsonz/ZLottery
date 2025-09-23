@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
-import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { useAccount, useReadContract } from 'wagmi';
 import { formatEther } from 'viem';
+import { ethers } from 'ethers';
 import { CONTRACT_ADDRESS, CONTRACT_ABI } from '../config/contracts';
+import { useEthersSigner } from '../hooks/useEthersSigner';
 
 
 export function WinningCheck() {
@@ -9,6 +11,8 @@ export function WinningCheck() {
   const [selectedRound, setSelectedRound] = useState<number>(1);
   const [selectedTicketIndex, setSelectedTicketIndex] = useState<number>(0);
   const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const signer = useEthersSigner();
 
   // Read current round
   const { data: currentRound } = useReadContract({
@@ -57,28 +61,15 @@ export function WinningCheck() {
     args: address && selectedRound ? [BigInt(selectedRound), address] : undefined,
   });
 
-  const { writeContract, data: hash, error, isPending } = useWriteContract();
-
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
-    hash,
-  });
-
-  useEffect(() => {
-    if (isConfirmed) {
-      setMessage({ type: 'success', text: 'Prize claimed successfully!' });
-      refetchHasClaimed();
-    }
-  }, [isConfirmed, refetchHasClaimed]);
-
-  useEffect(() => {
-    if (error) {
-      setMessage({ type: 'error', text: error.message || 'Transaction failed' });
-    }
-  }, [error]);
 
   const claimPrize = async () => {
     if (!address) {
       setMessage({ type: 'error', text: 'Please connect your wallet' });
+      return;
+    }
+
+    if (!signer) {
+      setMessage({ type: 'error', text: 'Signer not available' });
       return;
     }
 
@@ -98,16 +89,30 @@ export function WinningCheck() {
     }
 
     try {
+      setIsLoading(true);
       setMessage(null);
-      writeContract({
-        address: CONTRACT_ADDRESS,
-        abi: CONTRACT_ABI,
-        functionName: 'claimPrizeSimple',
-        args: [BigInt(selectedRound), BigInt(selectedTicketIndex)],
-      });
+
+      // Claim prize using ethers
+      const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+      const tx = await contract.claimPrizeSimple(
+        BigInt(selectedRound),
+        BigInt(selectedTicketIndex)
+      );
+
+      setMessage({ type: 'info', text: 'Transaction sent, waiting for confirmation...' });
+
+      // Wait for transaction confirmation
+      const receipt = await tx.wait();
+      console.log('Transaction confirmed:', receipt);
+
+      setMessage({ type: 'success', text: 'Prize claimed successfully!' });
+      refetchHasClaimed();
+      setIsLoading(false);
+
     } catch (err) {
       console.error('Error claiming prize:', err);
       setMessage({ type: 'error', text: 'Failed to claim prize' });
+      setIsLoading(false);
     }
   };
 
@@ -215,14 +220,14 @@ export function WinningCheck() {
           {isRoundDrawn ? (
             <button
               onClick={claimPrize}
-              disabled={hasClaimed || isPending || isConfirming}
+              disabled={hasClaimed || isLoading}
               className="lottery-button"
               style={{ flex: 1 }}
             >
-              {isPending || isConfirming ? (
+              {isLoading ? (
                 <div className="loading-button">
                   <div className="loading-spinner"></div>
-                  {isPending ? 'Claiming...' : 'Confirming...'}
+                  Processing...
                 </div>
               ) : hasClaimed ? (
                 'Already Claimed'
