@@ -35,7 +35,7 @@ export function TicketPurchase() {
   });
 
   // Read prize pool for current round
-  const { data: prizePool } = useReadContract({
+  const { data: prizePool, refetch: refetchPrizePool } = useReadContract({
     address: CONTRACT_ADDRESS,
     abi: CONTRACT_ABI,
     functionName: 'prizePools',
@@ -43,12 +43,13 @@ export function TicketPurchase() {
   });
 
   // Read total tickets in current round
-  const { data: totalTickets } = useReadContract({
+  const { data: totalTickets, refetch: refetchTotalTickets } = useReadContract({
     address: CONTRACT_ADDRESS,
     abi: CONTRACT_ABI,
     functionName: 'totalTicketsInRound',
     args: currentRound ? [currentRound] : undefined,
   });
+
 
   // Check if round is drawn
   const { data: isRoundDrawn } = useReadContract({
@@ -101,10 +102,11 @@ export function TicketPurchase() {
       // Wait for transaction confirmation
       const receipt = await tx.wait();
       console.log('Transaction confirmed:', receipt);
+      console.log('Transaction hash:', receipt.hash);
+      console.log('Block number:', receipt.blockNumber);
 
       setMessage({ type: 'success', text: 'Ticket purchased successfully!' });
       setTicketNumber('');
-      refetchTicketCount();
       setIsLoading(false);
 
     } catch (err) {

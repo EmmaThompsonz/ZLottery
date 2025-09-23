@@ -1,5 +1,5 @@
 // ZLottery contract deployed on Sepolia
-export const CONTRACT_ADDRESS = '0xB522e0f9fc8AeC74AA1Abc3eCC2b43dE89Fa4769';
+export const CONTRACT_ADDRESS = '0x8580d0b24c5C7E32aecCaC456E4E8c220Cea1578';
 
 // Generated ABI from contract artifacts - Auto-synced from ZLottery.json
 export const CONTRACT_ABI = [
