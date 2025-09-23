@@ -183,11 +183,14 @@ contract ZLottery is SepoliaConfig {
 
     /// @notice Callback function for processing claim decryption results
     /// @param requestId The decryption request ID
-    /// @param isWinnerDecrypted The decrypted winner status
-    /// @param signatures The decryption signatures
-    function processClaimDecryption(uint256 requestId, bool isWinnerDecrypted, bytes[] memory signatures) public {
+    /// @param cleartexts The decrypted data
+    /// @param decryptionProof The decryption proof
+    function processClaimDecryption(uint256 requestId, bytes memory cleartexts, bytes memory decryptionProof) public {
         // Verify the signatures
-        FHE.checkSignatures(requestId, signatures);
+        FHE.checkSignatures(requestId, cleartexts, decryptionProof);
+
+        // Decode the decrypted boolean
+        (bool isWinnerDecrypted) = abi.decode(cleartexts, (bool));
 
         // Find the corresponding claim (simplified - in production, map requestId to claimId)
         // For now, we'll process the oldest pending claim
